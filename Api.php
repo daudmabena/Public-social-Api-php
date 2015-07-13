@@ -6,14 +6,14 @@ class Api {
     public $output = 'json';
     public $header = false;
     public $graph = 'facebook';
-	private $language = 'pt-br';
-	public $lang;
+    private $language = 'pt-br';
+    public $lang;
     public function __construct() {
         $this->Curl          = (object) $this->Curl;
         $this->Curl->referer = '';
         $this->Curl->agent   = 'Android';
-		$this->language = strtolower($this->language);
-		$this->lang = $this->lang($this->language);
+        $this->language      = strtolower($this->language);
+        $this->lang          = $this->lang($this->language);
     }
     public function setVar($name, $value) {
         if (preg_match('/([^:]+)(::|->)([a-z0-9_]+)/i', $name, $str)) {
@@ -40,17 +40,17 @@ class Api {
         }
         return $output;
     }
-	private function lang($language=false){
-		$lang = array();
-		$lang['pt-br'][0] = 'Adicione o username.';
-		$lang['pt-br'][1] = 'A página solicitada não existe ou não esta disponivel.';
-		$lang['pt-br'][2] = 'Graph inválido.';
-		$lang['pt-br'][3] = 'É necessario o parametro username em sua url para solicitar este recurso';
-		if(!empty($lang[$language])){
-			return $lang[$language];
-		}
-		return $lang;
-	}
+    private function lang($language = false) {
+        $lang             = array();
+        $lang['pt-br'][0] = 'Adicione o username.';
+        $lang['pt-br'][1] = 'A página solicitada não existe ou não esta disponivel.';
+        $lang['pt-br'][2] = 'Graph inválido.';
+        $lang['pt-br'][3] = 'É necessario o parametro username em sua url para solicitar este recurso';
+        if (!empty($lang[$language])) {
+            return $lang[$language];
+        }
+        return $lang;
+    }
     public function graph() {
         if (empty($this->username)) {
             $graph      = $this->lang[0];
@@ -74,9 +74,10 @@ class Api {
         return $this->setOutput($graph, $graph_code);
     }
     private function graph_vk() {
-        $this->Curl->agent = 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36';
-        $urlRequest        = 'https://vk.com/' . $this->username;
-        $request           = $this->requestGraph($urlRequest);
+        $this->Curl->agent   = 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36';
+        $this->Curl->referer = 'https://vk.com/';
+        $urlRequest          = 'https://vk.com/' . $this->username;
+        $request             = $this->requestGraph($urlRequest);
         if (empty($request)) {
             return 'false';
         }
@@ -423,9 +424,10 @@ class Api {
         return $str;
     }
     private function graph_youtube() {
-        $this->Curl->agent = 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36';
-        $urlRequest        = 'https://www.youtube.com/' . ((!empty($_GET['useId'])) ? 'channel/' . $this->username . '/' : $this->username . '/');
-        $request           = $this->requestGraph($urlRequest);
+        $this->Curl->agent   = 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36';
+        $this->Curl->referer = 'https://www.youtube.com/';
+        $urlRequest          = 'https://www.youtube.com/' . ((!empty($_GET['useId'])) ? 'channel/' . $this->username . '/' : $this->username . '/');
+        $request             = $this->requestGraph($urlRequest);
         if (empty($request)) {
             return false;
         }
@@ -487,8 +489,9 @@ class Api {
         return $object;
     }
     private function graph_twitter() {
-        $this->Curl->agent = 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36';
-        $request           = $this->requestGraph('https://twitter.com/' . $this->username . '/');
+        $this->Curl->agent   = 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36';
+        $this->Curl->referer = 'https://twitter.com/';
+        $request             = $this->requestGraph('https://twitter.com/' . $this->username . '/');
         if (empty($request)) {
             return false;
         }
@@ -569,7 +572,8 @@ class Api {
         return $object;
     }
     private function graph_instagram() {
-        $request = $this->requestGraph('https://instagram.com/' . $this->username . '/');
+        $this->Curl->referer = 'https://instagram.com/';
+        $request             = $this->requestGraph('https://instagram.com/' . $this->username . '/');
         if (empty($request)) {
             return false;
         }
