@@ -12,7 +12,6 @@ class Api {
         $this->Curl          = (object) $this->Curl;
         $this->Curl->referer = '';
         $this->Curl->agent   = 'Android';
-        $this->language      = strtolower($this->language);
         $this->lang          = $this->lang($this->language);
     }
     public function setVar($name, $value) {
@@ -23,6 +22,7 @@ class Api {
         } else {
             $this->$name = $value;
         }
+		return;
     }
     public function setOutput($output, $code) {
         if (gettype($output) == 'string') {
@@ -42,12 +42,23 @@ class Api {
     }
     private function lang($language = false) {
         $lang             = array();
+		/*
+		 * Portugues (Brasil);
+		 */
         $lang['pt-br'][0] = 'Adicione o username.';
         $lang['pt-br'][1] = 'A página solicitada não existe ou não esta disponivel.';
         $lang['pt-br'][2] = 'Graph inválido.';
-        $lang['pt-br'][3] = 'É necessario o parametro username em sua url para solicitar este recurso';
-        if (!empty($lang[$language])) {
-            return $lang[$language];
+        $lang['pt-br'][3] = 'É necessario o parametro username em sua url para solicitar este recurso.';
+		/*
+		 * English (United States);
+		 */
+        $lang['en-us'][0] = 'Add the username.';
+        $lang['en-us'][1] = 'The page you requested does not exist or is not available.';
+        $lang['en-us'][2] = 'Invalid Graph.';
+        $lang['en-us'][3] = 'It is necessary the username parameter in your url to request this feature.';
+		
+        if (!empty($language) and !empty($lang[$language])) {
+            return $lang[strtolower($language)];
         }
         return $lang;
     }
@@ -72,6 +83,283 @@ class Api {
             $graph_code = 404;
         }
         return $this->setOutput($graph, $graph_code);
+    }
+    private function parse_string($str, $find = false, $place = 'last') {
+        if (!empty($find)) {
+            parse_str($this->findOccurrence($str, $find, $place), $str);
+        } else {
+            parse_str($str, $str);
+        }
+        return $str;
+    }
+    private function setFields() {
+        $fields                        = array();
+        $fields['facebook']            = array(
+            'id' => 1,
+            'type' => 1,
+            'name' => 1,
+            'username' => 1,
+            'picture' => 1,
+            'link' => 1,
+            'verify' => 1,
+            'likeds' => 1,
+            'about' => 1,
+            'cover' => 1
+        );
+        $fields['facebook']['page']    = array(
+            'likes' => 1,
+            'checkins' => 1,
+            'rating' => 1,
+            'email' => 1,
+            'founded' => 1,
+            'website' => 1
+        );
+        $fields['facebook']['profile'] = array(
+            'alternative_name' => 1
+        );
+        $fields['instagram']           = array(
+            'username' => 1,
+            'biography' => 1,
+            'website' => 1,
+            'picture' => 1,
+            'full_name' => 1,
+            'is_private' => 1,
+            'counts' => 1,
+            'is_verified' => 1
+        );
+        $fields['twitter']             = array(
+            'name' => 1,
+            'screen_name' => 1,
+            'location' => 1,
+            'url' => 1,
+            'description' => 1,
+            'protected' => 1,
+            'counts' => 1,
+            'created_at' => 1,
+            'time_zone' => 1,
+            'verified' => 1,
+            'lang' => 1,
+            'badges' => 1,
+            'profile' => 1
+        );
+        $fields['vk']                  = array(
+            'id' => 1,
+            'type' => 1,
+            'username' => 1,
+            'name' => 1,
+            'photo' => 1,
+            'description' => 1,
+            'location' => 1,
+            'website' => 1,
+            'counts' => 1
+        );
+        $fields['vk']['group']         = array(
+            'only_official' => 1
+        );
+        $fields['vk']['page']          = array(
+            'text' => 1,
+            'verified' => 1
+        );
+        $fields['vk']['profile']       = array(
+            'birthday' => 1,
+            'hometown' => 1,
+            'current_city' => 1,
+            'social' => 1,
+            'education' => 1,
+            'verified' => 1
+        );
+        if (empty($fields[$this->graph])) {
+            return false;
+        }
+        $fields = $fields[$this->graph];
+        if (!empty($_GET['fields'])) {
+            $ex        = explode(',', $_GET['fields']);
+            $newFields = array();
+            foreach ($ex as $field => $val) {
+                if (!empty($fields['page'][$val])) {
+                    $newFields['page'][$val] = 1;
+                } elseif (!empty($fields['profile'][$val])) {
+                    $newFields['profile'][$val] = 1;
+                } elseif (!empty($fields['group'][$val])) {
+                    $newFields['group'][$val] = 1;
+                } elseif (!empty($fields[$val])) {
+                    $newFields[$val] = 1;
+                }
+            }
+            unset($fields);
+            $fields = $newFields;
+            unset($newFields);
+        }
+        return $fields;
+    }
+    private function returnArray($object) {
+        return json_decode(json_encode($object), true);
+    }
+    private function returnJson($object) {
+        if ($this->header == true) {
+            header('Content-type: application/json; charset=UTF-8');
+        }
+        return $this->json_format($object);
+    }
+    private function returnXml($object) {
+        if ($this->header == true) {
+            header("Content-Type: text/xml;  charset=UTF-8", true);
+        }
+        return $this->xml_encode($object);
+    }
+    private function requestGraph($forceUrl = false) {
+        if (empty($this->username)) {
+            return false;
+        }
+        $this->Curl->urlPage  = (!empty($forceUrl)) ? $forceUrl : 'https://www.facebook.com/' . $this->username . '?__nodl&_fb_noscript=1';
+        $this->Curl->infoPage = parse_url($this->Curl->urlPage);
+        if (empty($this->Curl->infoPage['host'])) {
+            return;
+        }
+        $ch         = curl_init();
+        $curl_array = array(
+            CURLOPT_ENCODING => '',
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            CURLOPT_URL => $this->Curl->urlPage,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_POST => false,
+            CURLOPT_REFERER => $this->Curl->referer,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_HEADER => true
+        );
+        if (!empty($this->Curl->agent)) {
+            $curl_array[CURLOPT_USERAGENT] = $this->Curl->agent;
+        }
+        $curl_array[CURLOPT_HTTPHEADER] = array(
+            'Host: ' . $this->Curl->infoPage['host'],
+            'accept-language:pt-BR,pt;',
+            'origin: ' . $this->Curl->infoPage['scheme'] . '://' . $this->Curl->infoPage['host'],
+            'accept-encoding:gzip, deflate, sdch',
+            'accept:text/html',
+            'cache-control:max-age=0'
+        );
+        if ($this->Curl->interface != false && $this->Curl->interface != '127.0.0.1') {
+            $curl_array[CURLOPT_INTERFACE] = $this->Curl->interface;
+        }
+        if ($this->graph == 'facebook') {
+            $curl_array[CURLOPT_COOKIE] = 'noscript=1; locale=pt_BR; reg_fb_ref=' . urlencode($this->Curl->urlPage) . '; reg_fb_gate=' . urlencode($this->Curl->urlPage) . ';';
+        } elseif ($this->graph == 'vk') {
+            $curl_array[CURLOPT_COOKIE] = 'remixlang=73; ';
+        }
+        curl_setopt_array($ch, $curl_array);
+        $response    = curl_exec($ch);
+        $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($http_status == '301' || $http_status == '302') {
+            preg_match('/Location:(.*?)\n/i', $response, $forceUrl);
+            return $this->requestGraph(trim(array_pop($forceUrl)));
+        }
+        return (object) array(
+            'http_code' => $http_status,
+            'response' => $response
+        );
+    }
+    private function findOccurrence($str, $search = '/', $find = 'last') {
+        if ($find == 'last') {
+            $return = substr(strrchr($str, $search), 1);
+        } elseif ($find == 'first') {
+            $return = stristr($str, $search, true);
+        }
+        if (empty($return)) {
+            return $str;
+        }
+        return $return;
+    }
+    private function mb_convert($string) {
+        return preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', function($match) {
+            return mb_convert_encoding(pack('H*', $match[1]), 'UTF-8', 'UTF-16BE');
+        }, $string);
+    }
+    private function json_format($json) {
+        if (!is_string($json)) {
+            if (phpversion() && phpversion() >= 5.4) {
+                return json_encode($json, JSON_PRETTY_PRINT);
+            }
+            $json = str_replace('\/', '/', json_encode($json));
+        }
+        $result      = '';
+        $pos         = 0;
+        $strLen      = strlen($json);
+        $indentStr   = "   ";
+        $newLine     = "\n";
+        $prevChar    = '';
+        $outOfQuotes = true;
+        for ($i = 0; $i < $strLen; $i++) {
+            $copyLen = strcspn($json, $outOfQuotes ? " \t\r\n\",:[{}]" : "\\\"", $i);
+            if ($copyLen >= 1) {
+                $copyStr  = substr($json, $i, $copyLen);
+                $prevChar = '';
+                $result .= $copyStr;
+                $i += $copyLen - 1;
+                continue;
+            }
+            $char = substr($json, $i, 1);
+            if (!$outOfQuotes && $prevChar === '\\') {
+                $result .= $char;
+                $prevChar = '';
+                continue;
+            }
+            if ($char === '"' && $prevChar !== '\\') {
+                $outOfQuotes = !$outOfQuotes;
+            } else if ($outOfQuotes && ($char === '}' || $char === ']')) {
+                $result .= $newLine;
+                $pos--;
+                for ($j = 0; $j < $pos; $j++) {
+                    $result .= $indentStr;
+                    ;
+                }
+            } else if ($outOfQuotes && false !== strpos(" \t\r\n", $char)) {
+                continue;
+            }
+            $result .= $char;
+            if ($outOfQuotes && $char === ':') {
+                $result .= ' ';
+            } else if ($outOfQuotes && ($char === ',' || $char === '{' || $char === '[')) {
+                $result .= $newLine;
+                if ($char === '{' || $char === '[') {
+                    $pos++;
+                }
+                for ($j = 0; $j < $pos; $j++) {
+                    $result .= $indentStr;
+                }
+            }
+            $prevChar = $char;
+        }
+        $result = preg_replace('/\"([0-9]+)\"\,/i', '$1,', $result);
+        return $result;
+    }
+    private function xml_encode($var, $indent = false, $i = 0) {
+        $version = "1.0";
+        if (!$i) {
+            $data = '<?xml version="1.0"?>' . ($indent ? "\r\n" : '') . '<root vartype="' . gettype($var) . '" xml_encode_version="' . $version . '">' . ($indent ? "\r\n" : '');
+        } else {
+            $data = '';
+        }
+        foreach ($var as $k => $v) {
+            $data .= ($indent ? str_repeat("\t", $i) : '') . '<var vartype="' . gettype($v) . '" varname="' . htmlspecialchars($k) . '"';
+            if ($v == "") {
+                $data .= ' />';
+            } else {
+                $data .= '>';
+                if (is_array($v) || is_object($v)) {
+                    $data .= ($indent ? "\r\n" : '') . $this->xml_encode($v, $indent, ($i + 1)) . ($indent ? str_repeat("\t", $i) : '');
+                } else {
+                    $data .= htmlspecialchars($v);
+                }
+                $data .= '</var>';
+            }
+            $data .= ($indent ? "\r\n" : '');
+        }
+        if (!$i) {
+            $data .= '</root>';
+        }
+        return $data;
     }
     private function graph_vk() {
         $this->Curl->agent   = 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36';
@@ -415,14 +703,6 @@ class Api {
         unset($request, $dom, $domPath);
         return $object;
     }
-    private function parse_string($str, $find = false, $place = 'last') {
-        if (!empty($find)) {
-            parse_str($this->findOccurrence($str, $find, $place), $str);
-        } else {
-            parse_str($str, $str);
-        }
-        return $str;
-    }
     private function graph_youtube() {
         $this->Curl->agent   = 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36';
         $this->Curl->referer = 'https://www.youtube.com/';
@@ -568,7 +848,7 @@ class Api {
                 $object->profile->use_background_image       = (!empty($twitter->profile_use_background_image)) ? $twitter->profile_use_background_image : '';
             }
         }
-        unset($request, $twitter);
+        unset($request, $twitter, $dom, $domPath);
         return $object;
     }
     private function graph_instagram() {
@@ -615,7 +895,7 @@ class Api {
             }
             $object->data->id = (!empty($request->json->id)) ? $request->json->id : $object->data->id;
         }
-        unset($request);
+        unset($request, $dom, $domPath);
         return $object;
     }
     private function graph_facebook() {
@@ -836,277 +1116,8 @@ class Api {
         if (!empty($fields['picture'])) {
             $object->picture = 'https://graph.facebook.com/' . ((!empty($object->username)) ? $object->username : $object->id) . '/picture?type=large';
         }
-        unset($request);
+        unset($request, $dom, $domPath);
         return $object;
-    }
-    private function setFields() {
-        $fields                        = array();
-        $fields['facebook']            = array(
-            'id' => 1,
-            'type' => 1,
-            'name' => 1,
-            'username' => 1,
-            'picture' => 1,
-            'link' => 1,
-            'verify' => 1,
-            'likeds' => 1,
-            'about' => 1,
-            'cover' => 1
-        );
-        $fields['facebook']['page']    = array(
-            'likes' => 1,
-            'checkins' => 1,
-            'rating' => 1,
-            'email' => 1,
-            'founded' => 1,
-            'website' => 1
-        );
-        $fields['facebook']['profile'] = array(
-            'alternative_name' => 1
-        );
-        $fields['instagram']           = array(
-            'username' => 1,
-            'biography' => 1,
-            'website' => 1,
-            'picture' => 1,
-            'full_name' => 1,
-            'is_private' => 1,
-            'counts' => 1,
-            'is_verified' => 1
-        );
-        $fields['twitter']             = array(
-            'name' => 1,
-            'screen_name' => 1,
-            'location' => 1,
-            'url' => 1,
-            'description' => 1,
-            'protected' => 1,
-            'counts' => 1,
-            'created_at' => 1,
-            'time_zone' => 1,
-            'verified' => 1,
-            'lang' => 1,
-            'badges' => 1,
-            'profile' => 1
-        );
-        $fields['vk']                  = array(
-            'id' => 1,
-            'type' => 1,
-            'username' => 1,
-            'name' => 1,
-            'photo' => 1,
-            'description' => 1,
-            'location' => 1,
-            'website' => 1,
-            'counts' => 1
-        );
-        $fields['vk']['group']         = array(
-            'only_official' => 1
-        );
-        $fields['vk']['page']          = array(
-            'text' => 1,
-            'verified' => 1
-        );
-        $fields['vk']['profile']       = array(
-            'birthday' => 1,
-            'hometown' => 1,
-            'current_city' => 1,
-            'social' => 1,
-            'education' => 1,
-            'verified' => 1
-        );
-        if (empty($fields[$this->graph])) {
-            return false;
-        }
-        $fields = $fields[$this->graph];
-        if (!empty($_GET['fields'])) {
-            $ex        = explode(',', $_GET['fields']);
-            $newFields = array();
-            foreach ($ex as $field => $val) {
-                if (!empty($fields['page'][$val])) {
-                    $newFields['page'][$val] = 1;
-                } elseif (!empty($fields['profile'][$val])) {
-                    $newFields['profile'][$val] = 1;
-                } elseif (!empty($fields['group'][$val])) {
-                    $newFields['group'][$val] = 1;
-                } elseif (!empty($fields[$val])) {
-                    $newFields[$val] = 1;
-                }
-            }
-            unset($fields);
-            $fields = $newFields;
-            unset($newFields);
-        }
-        return $fields;
-    }
-    private function returnArray($object) {
-        return json_decode(json_encode($object), true);
-    }
-    private function returnJson($object) {
-        if ($this->header == true) {
-            header('Content-type: application/json; charset=UTF-8');
-        }
-        return $this->json_format($object);
-    }
-    private function returnXml($object) {
-        if ($this->header == true) {
-            header("Content-Type: text/xml;  charset=UTF-8", true);
-        }
-        return $this->xml_encode($object);
-    }
-    private function requestGraph($forceUrl = false) {
-        if (empty($this->username)) {
-            return false;
-        }
-        $this->Curl->urlPage  = (!empty($forceUrl)) ? $forceUrl : 'https://www.facebook.com/' . $this->username . '?__nodl&_fb_noscript=1';
-        $this->Curl->infoPage = parse_url($this->Curl->urlPage);
-        if (empty($this->Curl->infoPage['host'])) {
-            return;
-        }
-        $ch         = curl_init();
-        $curl_array = array(
-            CURLOPT_ENCODING => '',
-            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-            CURLOPT_URL => $this->Curl->urlPage,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_POST => false,
-            CURLOPT_REFERER => $this->Curl->referer,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_HEADER => true
-        );
-        if (!empty($this->Curl->agent)) {
-            $curl_array[CURLOPT_USERAGENT] = $this->Curl->agent;
-        }
-        $curl_array[CURLOPT_HTTPHEADER] = array(
-            'Host: ' . $this->Curl->infoPage['host'],
-            'accept-language:pt-BR,pt;',
-            'origin: ' . $this->Curl->infoPage['scheme'] . '://' . $this->Curl->infoPage['host'],
-            'accept-encoding:gzip, deflate, sdch',
-            'accept:text/html',
-            'cache-control:max-age=0'
-        );
-        if ($this->Curl->interface != false && $this->Curl->interface != '127.0.0.1') {
-            $curl_array[CURLOPT_INTERFACE] = $this->Curl->interface;
-        }
-        if ($this->graph == 'facebook') {
-            $curl_array[CURLOPT_COOKIE] = 'noscript=1; locale=pt_BR; reg_fb_ref=' . urlencode($this->Curl->urlPage) . '; reg_fb_gate=' . urlencode($this->Curl->urlPage) . ';';
-        } elseif ($this->graph == 'vk') {
-            $curl_array[CURLOPT_COOKIE] = 'remixlang=73; ';
-        }
-        curl_setopt_array($ch, $curl_array);
-        $response    = curl_exec($ch);
-        $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($http_status == '301' || $http_status == '302') {
-            preg_match('/Location:(.*?)\n/i', $response, $forceUrl);
-            return $this->requestGraph(trim(array_pop($forceUrl)));
-        }
-        return (object) array(
-            'http_code' => $http_status,
-            'response' => $response
-        );
-    }
-    private function findOccurrence($str, $search = '/', $find = 'last') {
-        if ($find == 'last') {
-            $return = substr(strrchr($str, $search), 1);
-        } elseif ($find == 'first') {
-            $return = stristr($str, $search, true);
-        }
-        if (empty($return)) {
-            return $str;
-        }
-        return $return;
-    }
-    private function mb_convert($string) {
-        return preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', function($match) {
-            return mb_convert_encoding(pack('H*', $match[1]), 'UTF-8', 'UTF-16BE');
-        }, $string);
-    }
-    private function json_format($json) {
-        if (!is_string($json)) {
-            if (phpversion() && phpversion() >= 5.4) {
-                return json_encode($json, JSON_PRETTY_PRINT);
-            }
-            $json = str_replace('\/', '/', json_encode($json));
-        }
-        $result      = '';
-        $pos         = 0;
-        $strLen      = strlen($json);
-        $indentStr   = "   ";
-        $newLine     = "\n";
-        $prevChar    = '';
-        $outOfQuotes = true;
-        for ($i = 0; $i < $strLen; $i++) {
-            $copyLen = strcspn($json, $outOfQuotes ? " \t\r\n\",:[{}]" : "\\\"", $i);
-            if ($copyLen >= 1) {
-                $copyStr  = substr($json, $i, $copyLen);
-                $prevChar = '';
-                $result .= $copyStr;
-                $i += $copyLen - 1;
-                continue;
-            }
-            $char = substr($json, $i, 1);
-            if (!$outOfQuotes && $prevChar === '\\') {
-                $result .= $char;
-                $prevChar = '';
-                continue;
-            }
-            if ($char === '"' && $prevChar !== '\\') {
-                $outOfQuotes = !$outOfQuotes;
-            } else if ($outOfQuotes && ($char === '}' || $char === ']')) {
-                $result .= $newLine;
-                $pos--;
-                for ($j = 0; $j < $pos; $j++) {
-                    $result .= $indentStr;
-                    ;
-                }
-            } else if ($outOfQuotes && false !== strpos(" \t\r\n", $char)) {
-                continue;
-            }
-            $result .= $char;
-            if ($outOfQuotes && $char === ':') {
-                $result .= ' ';
-            } else if ($outOfQuotes && ($char === ',' || $char === '{' || $char === '[')) {
-                $result .= $newLine;
-                if ($char === '{' || $char === '[') {
-                    $pos++;
-                }
-                for ($j = 0; $j < $pos; $j++) {
-                    $result .= $indentStr;
-                }
-            }
-            $prevChar = $char;
-        }
-        $result = preg_replace('/\"([0-9]+)\"\,/i', '$1,', $result);
-        return $result;
-    }
-    private function xml_encode($var, $indent = false, $i = 0) {
-        $version = "1.0";
-        if (!$i) {
-            $data = '<?xml version="1.0"?>' . ($indent ? "\r\n" : '') . '<root vartype="' . gettype($var) . '" xml_encode_version="' . $version . '">' . ($indent ? "\r\n" : '');
-        } else {
-            $data = '';
-        }
-        foreach ($var as $k => $v) {
-            $data .= ($indent ? str_repeat("\t", $i) : '') . '<var vartype="' . gettype($v) . '" varname="' . htmlspecialchars($k) . '"';
-            if ($v == "") {
-                $data .= ' />';
-            } else {
-                $data .= '>';
-                if (is_array($v) || is_object($v)) {
-                    $data .= ($indent ? "\r\n" : '') . $this->xml_encode($v, $indent, ($i + 1)) . ($indent ? str_repeat("\t", $i) : '');
-                } else {
-                    $data .= htmlspecialchars($v);
-                }
-                $data .= '</var>';
-            }
-            $data .= ($indent ? "\r\n" : '');
-        }
-        if (!$i) {
-            $data .= '</root>';
-        }
-        return $data;
     }
 }
 $Api = new Api();
